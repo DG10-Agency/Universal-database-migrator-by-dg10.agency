@@ -15,10 +15,10 @@ const COMMON_WINDOWS_PATHS = [
 /**
  * Finds a system binary, checking PATH first and then common installation directories.
  */
-export async function getBinaryPath(name: 'psql' | 'pg_dump' | 'pg_dumpall' | 'supabase'): Promise<string> {
+export async function getBinaryPath(name: 'psql' | 'pg_dump' | 'pg_dumpall' | 'supabase' | 'mysql' | 'mysqldump' | 'sqlite3'): Promise<string> {
     // 1. Try standard PATH
     try {
-        await execAsyncRaw(`${name} --version`);
+        await execAsyncRaw(`${name} ${name === 'sqlite3' ? '--version' : '--version'}`);
         return name;
     } catch (e) {
         // Not in PATH
@@ -26,10 +26,17 @@ export async function getBinaryPath(name: 'psql' | 'pg_dump' | 'pg_dumpall' | 's
 
     // 2. Try common Windows paths
     if (process.platform === 'win32') {
-        for (const basePath of COMMON_WINDOWS_PATHS) {
+        const paths = [...COMMON_WINDOWS_PATHS];
+        if (name === 'mysql' || name === 'mysqldump') {
+            paths.push('C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin');
+            paths.push('C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin');
+            paths.push('C:\\xampp\\mysql\\bin');
+        }
+        
+        for (const basePath of paths) {
             const fullPath = path.join(basePath, `${name}.exe`);
             if (fs.existsSync(fullPath)) {
-                return `"${fullPath}"`; // Quote path for shell safety
+                return `"${fullPath}"`;
             }
         }
     }

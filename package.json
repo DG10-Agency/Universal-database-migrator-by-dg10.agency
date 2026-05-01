@@ -1,5 +1,5 @@
 {
-  "name": "supabase-migrator",
+  "name": "universal-database-migrator",
   "version": "0.1.0",
   "private": true,
   "scripts": {

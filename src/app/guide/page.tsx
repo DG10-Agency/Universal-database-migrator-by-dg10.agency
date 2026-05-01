@@ -37,7 +37,7 @@ export default function GuidePage() {
                             Credentials Guide
                         </h1>
                         <p className="text-zinc-400 mt-2 text-lg">
-                            Everything you need to successfully link your Supabase projects.
+                            Everything you need to successfully link your database projects.
                         </p>
                     </div>
                 </div>

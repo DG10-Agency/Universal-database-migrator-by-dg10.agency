@@ -5,24 +5,22 @@ export async function GET() {
     try {
         const psqlPath = await getBinaryPath('psql');
         const pgDumpPath = await getBinaryPath('pg_dump');
+        const mysqlPath = await getBinaryPath('mysql');
+        const mysqlDumpPath = await getBinaryPath('mysqldump');
+        const sqlitePath = await getBinaryPath('sqlite3');
         const supabasePath = await getBinaryPath('supabase');
 
-        console.log(`[Deps Check] psql: ${psqlPath}, pg_dump: ${pgDumpPath}, supabase: ${supabasePath}`);
-
         const results = {
-            psql: psqlPath !== 'psql' || (await checkStatus(psqlPath)),
-            pg_dump: pgDumpPath !== 'pg_dump' || (await checkStatus(pgDumpPath)),
-            supabase: supabasePath !== 'supabase' || (await checkStatus(supabasePath)),
-            psqlPath: psqlPath,
-            pgDumpPath: pgDumpPath,
-            supabasePath: supabasePath
+            psql: await checkStatus(psqlPath),
+            pg_dump: await checkStatus(pgDumpPath),
+            mysql: await checkStatus(mysqlPath),
+            mysqldump: await checkStatus(mysqlDumpPath),
+            sqlite: await checkStatus(sqlitePath),
+            supabase: await checkStatus(supabasePath)
         };
 
-        console.log(`[Deps Check] Results:`, results);
-
         return NextResponse.json({
-            // Core database tools are mandatory for the app to function. Supabase CLI is optional (Edge Functions).
-            ready: results.psql && results.pg_dump,
+            ready: true, // Frontend will determine readiness based on selected driver
             dependencies: results
         });
     } catch (error) {

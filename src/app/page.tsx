@@ -40,7 +40,21 @@ const SUPABASE_REGIONS = [
   { value: "ca-central-1", label: "Canada (Central) [ca-central-1]" },
 ];
 
+type DriverMode = 'supabase' | 'generic';
+
+const isValidConnectionString = (cs: string) => {
+  if (!cs) return false;
+  const isPostgres = /^postgre(s|sql):\/\/.+/i.test(cs);
+  const isMysql = /^mysql:\/\/.+/i.test(cs);
+  const isSqlite = /^.+\.(db|sqlite)$/i.test(cs);
+  return isPostgres || isMysql || isSqlite;
+};
+
 export default function MigrationWizard() {
+  const [sourceType, setSourceType] = useState<DriverMode>('supabase');
+  const [targetType, setTargetType] = useState<DriverMode>('supabase');
+  const [sourceConnectionString, setSourceConnectionString] = useState('');
+  const [targetConnectionString, setTargetConnectionString] = useState('');
   const [sourcePat, setSourcePat] = useState('');
   const [targetPat, setTargetPat] = useState('');
   const [sourceProject, setSourceProject] = useState('');
@@ -58,7 +72,7 @@ export default function MigrationWizard() {
   const [history, setHistory] = useState<any[]>([]);
   const [testingSource, setTestingSource] = useState(false);
   const [testingTarget, setTestingTarget] = useState(false);
-  const [deps, setDeps] = useState<{ ready: boolean, dependencies: { psql: boolean, pg_dump: boolean, version?: string } } | null>(null);
+  const [deps, setDeps] = useState<{ ready: boolean, dependencies: { psql: boolean, pg_dump: boolean, mysql?: boolean, mysqldump?: boolean, sqlite?: boolean } } | null>(null);
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -70,10 +84,14 @@ export default function MigrationWizard() {
 
   // Load saved credentials from localStorage
   useEffect(() => {
-    const savedState = localStorage.getItem('supabase_migration_state');
+    const savedState = localStorage.getItem('udm_migration_state');
     if (savedState) {
       try {
         const state = JSON.parse(savedState);
+        if (state.sourceType) setSourceType(state.sourceType);
+        if (state.targetType) setTargetType(state.targetType);
+        if (state.sourceConnectionString) setSourceConnectionString(state.sourceConnectionString);
+        if (state.targetConnectionString) setTargetConnectionString(state.targetConnectionString);
         if (state.sourcePat) setSourcePat(state.sourcePat);
         if (state.targetPat) setTargetPat(state.targetPat);
         if (state.sourceProject) setSourceProject(state.sourceProject);
@@ -93,11 +111,12 @@ export default function MigrationWizard() {
   // Save credentials to localStorage
   useEffect(() => {
     const state = {
+      sourceType, targetType, sourceConnectionString, targetConnectionString,
       sourcePat, targetPat, sourceProject, sourceRegion, sourceDbPassword, sourceServiceRole,
       targetProject, targetRegion, targetDbPassword, targetServiceRole
     };
-    localStorage.setItem('supabase_migration_state', JSON.stringify(state));
-  }, [sourcePat, targetPat, sourceProject, sourceRegion, sourceDbPassword, sourceServiceRole, targetProject, targetRegion, targetDbPassword, targetServiceRole]);
+    localStorage.setItem('udm_migration_state', JSON.stringify(state));
+  }, [sourceType, targetType, sourceConnectionString, targetConnectionString, sourcePat, targetPat, sourceProject, sourceRegion, sourceDbPassword, sourceServiceRole, targetProject, targetRegion, targetDbPassword, targetServiceRole]);
 
   // Check system dependencies
   useEffect(() => {
@@ -115,7 +134,7 @@ export default function MigrationWizard() {
 
   // Load history from localStorage on mount
   useEffect(() => {
-    const savedHistory = localStorage.getItem('supabase_migration_history');
+    const savedHistory = localStorage.getItem('udm_migration_history');
     if (savedHistory) {
       try {
         setHistory(JSON.parse(savedHistory));
@@ -137,7 +156,7 @@ export default function MigrationWizard() {
     };
     const updatedHistory = [newItem, ...history].slice(0, 20); // Keep last 20
     setHistory(updatedHistory);
-    localStorage.setItem('supabase_migration_history', JSON.stringify(updatedHistory));
+    localStorage.setItem('udm_migration_history', JSON.stringify(updatedHistory));
   };
   const [showSourcePat, setShowSourcePat] = useState(false);
   const [showTargetPat, setShowTargetPat] = useState(false);
@@ -147,21 +166,66 @@ export default function MigrationWizard() {
   const [showTargetKey, setShowTargetKey] = useState(false);
   const [resumeMigration, setResumeMigration] = useState(true);
 
+  const buildTestPayload = (side: 'source' | 'target') => {
+    const isSource = side === 'source';
+    const mode = isSource ? sourceType : targetType;
+    if (mode === 'supabase') {
+      return {
+        projectRef: isSource ? sourceProject : targetProject,
+        region: isSource ? sourceRegion : targetRegion,
+        password: isSource ? sourceDbPassword : targetDbPassword,
+        pat: isSource ? sourcePat : targetPat,
+      };
+    }
+    return { connectionString: isSource ? sourceConnectionString : targetConnectionString };
+  };
+
   const handleMigration = async () => {
-    // Step 10: Validation
-    const refRegex = /^[a-z0-9]{20}$/i;
-    if (!refRegex.test(sourceProject) || !refRegex.test(targetProject)) {
-      toast.error("Invalid Project Reference ID. It should be a 20-character alphanumeric string.");
-      return;
+    // Validation per mode
+    if (sourceType === 'supabase') {
+      const refRegex = /^[a-z0-9]{20}$/i;
+      if (!refRegex.test(sourceProject)) {
+        toast.error("Invalid Source Project Reference ID. It should be a 20-character alphanumeric string.");
+        return;
+      }
+      if (!sourcePat || !sourceDbPassword || !sourceServiceRole) {
+        toast.error('Please fill in all required Source Supabase fields.');
+        return;
+      }
+    } else {
+      if (!sourceConnectionString) {
+        toast.error('Please provide a Source connection string.');
+        return;
+      }
+      if (!isValidConnectionString(sourceConnectionString)) {
+        toast.error('Invalid Source connection string format. Must be postgresql://..., mysql://..., or end in .db/.sqlite');
+        return;
+      }
     }
 
-    if (sourceProject === targetProject) {
+    if (targetType === 'supabase') {
+      const refRegex = /^[a-z0-9]{20}$/i;
+      if (!refRegex.test(targetProject)) {
+        toast.error("Invalid Target Project Reference ID. It should be a 20-character alphanumeric string.");
+        return;
+      }
+      if (!targetPat || !targetDbPassword || !targetServiceRole) {
+        toast.error('Please fill in all required Target Supabase fields.');
+        return;
+      }
+    } else {
+      if (!targetConnectionString) {
+        toast.error('Please provide a Target connection string.');
+        return;
+      }
+      if (!isValidConnectionString(targetConnectionString)) {
+        toast.error('Invalid Target connection string format. Must be postgresql://..., mysql://..., or end in .db/.sqlite');
+        return;
+      }
+    }
+
+    if (sourceType === 'supabase' && targetType === 'supabase' && sourceProject === targetProject) {
       toast.error("Source and Target projects cannot be the same.");
-      return;
-    }
-
-    if (!sourcePat || !targetPat || !sourceDbPassword || !sourceServiceRole || !targetDbPassword || !targetServiceRole) {
-      toast.error('Please fill in all required fields.');
       return;
     }
 
@@ -173,22 +237,20 @@ export default function MigrationWizard() {
 
     // Pre-migration Connection Testing
     try {
-      // Test Source
       const sourceTestResp = await fetch('/api/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectRef: sourceProject, region: sourceRegion, password: sourceDbPassword, pat: sourcePat }),
+        body: JSON.stringify(buildTestPayload('source')),
       });
       if (!sourceTestResp.ok) {
         const data = await sourceTestResp.json();
         throw new Error(`Source connection failed: ${data.error}`);
       }
 
-      // Test Target
       const targetTestResp = await fetch('/api/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectRef: targetProject, region: targetRegion, password: targetDbPassword, pat: targetPat }),
+        body: JSON.stringify(buildTestPayload('target')),
       });
       if (!targetTestResp.ok) {
         const data = await targetTestResp.json();
@@ -209,6 +271,10 @@ export default function MigrationWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sourceType,
+          targetType,
+          sourceConnectionString,
+          targetConnectionString,
           sourcePat,
           targetPat,
           sourceProject,
@@ -294,14 +360,26 @@ export default function MigrationWizard() {
   const testConnection = async (type: 'source' | 'target') => {
     const isSource = type === 'source';
     const setTesting = isSource ? setTestingSource : setTestingTarget;
-    const projectRef = isSource ? sourceProject : targetProject;
-    const region = isSource ? sourceRegion : targetRegion;
-    const password = isSource ? sourceDbPassword : targetDbPassword;
-    const pat = isSource ? sourcePat : targetPat;
+    const mode = isSource ? sourceType : targetType;
 
-    if (!projectRef || !region || !password || !pat) {
-      toast.error(`Please fill in PAT, Project Ref, Region, and DB Password for the ${type} first.`);
-      return;
+    if (mode === 'supabase') {
+      const projectRef = isSource ? sourceProject : targetProject;
+      const password = isSource ? sourceDbPassword : targetDbPassword;
+      const pat = isSource ? sourcePat : targetPat;
+      if (!projectRef || !password || !pat) {
+        toast.error(`Please fill in PAT, Project Ref, and DB Password for the ${type} first.`);
+        return;
+      }
+    } else {
+      const cs = isSource ? sourceConnectionString : targetConnectionString;
+      if (!cs) {
+        toast.error(`Please provide a connection string for the ${type} first.`);
+        return;
+      }
+      if (!isValidConnectionString(cs)) {
+        toast.error(`Invalid ${type} connection string format. Must be postgresql://..., mysql://..., or end in .db/.sqlite`);
+        return;
+      }
     }
 
     setTesting(true);
@@ -309,7 +387,7 @@ export default function MigrationWizard() {
       const response = await fetch('/api/test-connection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectRef, region, password, pat }),
+        body: JSON.stringify(buildTestPayload(type)),
       });
 
       const data = await response.json();
@@ -347,14 +425,14 @@ export default function MigrationWizard() {
         <header className="h-16 border-b border-white/5 flex items-center px-8 justify-between shrink-0 bg-zinc-950/50 backdrop-blur-xl z-50">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg bg-zinc-900">
-              <img src="/logo.png" alt="Supabase Migrator Logo" className="w-full h-full object-cover scale-110" />
+              <img src="/logo.png" alt="Database Migrator Logo" className="w-full h-full object-cover scale-110" />
             </div>
             <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
-              Supabase Migrator By DG10.Agency
+              Universal Database Migrator Open Source
             </h1>
           </div>
           <div className="flex items-center gap-4">
-            <a href="https://github.com/DG10-Agency/Complete-Supabase-One-Click-Migration-by-DG10.Agency" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-white transition-colors">
+            <a href="https://github.com" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-white transition-colors">
               <Github className="w-5 h-5" />
             </a>
 
@@ -427,7 +505,7 @@ export default function MigrationWizard() {
                       <HistoryIcon className="w-3 h-3" /> Recent Activity
                     </h3>
                     <button
-                      onClick={() => { setHistory([]); localStorage.removeItem('supabase_migration_history'); }}
+                      onClick={() => { setHistory([]); localStorage.removeItem('udm_migration_history'); }}
                       className="text-[10px] text-zinc-500 hover:text-rose-400 transition-colors"
                       title="Clear History"
                     >
@@ -461,12 +539,22 @@ export default function MigrationWizard() {
               )}
             </div>
 
-            <div className="pt-6 border-t border-white/5">
-              <p className="text-xs text-zinc-500 mb-2 font-medium">Powering Digital Excellence</p>
-              <a href="https://dg10.agency" target="_blank" rel="noreferrer" className="group flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all border border-white/5">
-                <span className="text-sm font-semibold text-white">DG10.Agency</span>
-                <ExternalLink className="w-3 h-3 text-zinc-500 group-hover:text-emerald-400 transition-colors" />
-              </a>
+            <div className="pt-6 border-t border-white/5 space-y-4">
+              <div className="flex flex-col gap-1">
+                <p className="text-xs text-zinc-500 font-medium">Open Source Community</p>
+                <a href="https://github.com" target="_blank" rel="noreferrer" className="group flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all border border-white/5">
+                  <span className="text-sm font-semibold text-white">Contribute on GitHub</span>
+                  <Github className="w-3 h-3 text-zinc-500 group-hover:text-emerald-400 transition-colors" />
+                </a>
+              </div>
+              
+              <div className="flex flex-col gap-1">
+                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Maintained By</p>
+                <a href="https://dg10.agency" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-1 hover:opacity-80 transition-opacity">
+                  <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[10px] font-black text-white">DG</div>
+                  <span className="text-xs font-medium text-zinc-400 italic">DG10.Agency</span>
+                </a>
+              </div>
             </div>
           </aside >
 
@@ -475,7 +563,7 @@ export default function MigrationWizard() {
             <div className="max-w-6xl w-full mx-auto space-y-8">
               <div className="flex flex-col gap-2">
                 <h2 className="text-3xl font-bold tracking-tight">Migration Workspace</h2>
-                <p className="text-zinc-400">Complete project synchronization across Supabase instances.</p>
+                <p className="text-zinc-400">Migrate databases across PostgreSQL, MySQL, SQLite, and Supabase instances.</p>
               </div>
 
 
@@ -492,257 +580,355 @@ export default function MigrationWizard() {
                   </CardHeader>
                   <CardContent className="space-y-8">
                     {/* Dependency Warning */}
-                    {deps && !deps.ready && (
-                      <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center shrink-0">
-                          <AlertTriangle className="text-white w-6 h-6" />
-                        </div>
-                        <div className="space-y-1 flex-1">
-                          <h3 className="font-bold text-red-400">Missing System Dependencies</h3>
-                          <p className="text-sm text-slate-400 leading-relaxed">
-                            The migration engine requires <strong>PostgreSQL Client Tools</strong> (psql and pg_dump) to be installed on this server to perform a complete migration.
-                          </p>
-                          <div className="pt-2 flex gap-3">
-                            <Button asChild variant="outline" size="sm" className="h-8 bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20">
-                              <Link href="/guide#dependencies">
-                                <Settings className="w-3 h-3 mr-2" />
-                                View Setup Guide
-                              </Link>
-                            </Button>
+                    {deps && (
+                      (() => {
+                        let missing: string[] = [];
+                        
+                        // Check source dependencies
+                        if (sourceType === 'supabase' && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
+                          missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                        } else if (sourceType === 'generic') {
+                           if (sourceConnectionString.toLowerCase().startsWith('mysql') && (!deps.dependencies.mysql || !deps.dependencies.mysqldump)) {
+                             missing.push('MySQL Client Tools (mysql, mysqldump)');
+                           } else if ((sourceConnectionString.toLowerCase().startsWith('postgres') || sourceConnectionString === '') && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
+                             missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                           } else if ((sourceConnectionString.toLowerCase().endsWith('.db') || sourceConnectionString.toLowerCase().endsWith('.sqlite')) && !deps.dependencies.sqlite) {
+                             missing.push('SQLite Client Tools (sqlite3)');
+                           }
+                        }
+
+                        // Check target dependencies
+                        if (targetType === 'supabase' && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
+                          if (!missing.includes('PostgreSQL Client Tools (psql, pg_dump)')) missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                        } else if (targetType === 'generic') {
+                           if (targetConnectionString.toLowerCase().startsWith('mysql') && (!deps.dependencies.mysql || !deps.dependencies.mysqldump)) {
+                             if (!missing.includes('MySQL Client Tools (mysql, mysqldump)')) missing.push('MySQL Client Tools (mysql, mysqldump)');
+                           } else if ((targetConnectionString.toLowerCase().startsWith('postgres') || targetConnectionString === '') && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
+                             if (!missing.includes('PostgreSQL Client Tools (psql, pg_dump)')) missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                           } else if ((targetConnectionString.toLowerCase().endsWith('.db') || targetConnectionString.toLowerCase().endsWith('.sqlite')) && !deps.dependencies.sqlite) {
+                             if (!missing.includes('SQLite Client Tools (sqlite3)')) missing.push('SQLite Client Tools (sqlite3)');
+                           }
+                        }
+
+                        if (missing.length === 0) return null;
+
+                        return (
+                          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="w-10 h-10 rounded-xl bg-red-500 flex items-center justify-center shrink-0">
+                              <AlertTriangle className="text-white w-6 h-6" />
+                            </div>
+                            <div className="space-y-1 flex-1">
+                              <h3 className="font-bold text-red-400">Missing System Dependencies</h3>
+                              <p className="text-sm text-slate-400 leading-relaxed">
+                                The migration engine requires <strong>{missing.join(' and ')}</strong> to be installed on this server to perform a complete migration.
+                              </p>
+                              <div className="pt-2 flex gap-3">
+                                <Button asChild variant="outline" size="sm" className="h-8 bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20">
+                                  <Link href="/guide#dependencies">
+                                    <Settings className="w-3 h-3 mr-2" />
+                                    View Setup Guide
+                                  </Link>
+                                </Button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
+                        );
+                      })()
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* Source Project */}
+                      {/* Source Environment */}
                       <div className="space-y-4">
                         <h3 className="font-semibold flex items-center gap-2 text-sm text-rose-400/90 bg-rose-400/5 px-3 py-1.5 rounded-lg border border-rose-400/10 w-fit">
                           <Database className="w-4 h-4" />
                           Source Environment
                         </h3>
-                        <div className="space-y-4">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="sourcePat" className="text-xs font-semibold text-zinc-400">Personal Access Token</Label>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>Requires access to Source Project</TooltipContent>
-                              </Tooltip>
+                        
+                        <Tabs value={sourceType} onValueChange={(val) => setSourceType(val as DriverMode)} className="w-full">
+                          <TabsList className="grid w-full grid-cols-2 mb-4 bg-zinc-950/50 border border-white/5">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-300">Supabase</TabsTrigger>
+                            <TabsTrigger value="generic" className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-300">Connection String</TabsTrigger>
+                          </TabsList>
+                          
+                          <TabsContent value="supabase" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="sourcePat" className="text-xs font-semibold text-zinc-400">Personal Access Token</Label>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>Requires access to Source Project</TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <div className="relative">
+                                <Input
+                                  id="sourcePat"
+                                  type={showSourcePat ? "text" : "password"}
+                                  placeholder="sbp_..."
+                                  value={sourcePat}
+                                  onChange={(e) => setSourcePat(e.target.value)}
+                                  className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSourcePat(!showSourcePat)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                                >
+                                  {showSourcePat ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
                             </div>
-                            <div className="relative">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="sourceProject" className="text-xs font-semibold text-zinc-400">Project Reference ID</Label>
                               <Input
-                                id="sourcePat"
-                                type={showSourcePat ? "text" : "password"}
-                                placeholder="sbp_..."
-                                value={sourcePat}
-                                onChange={(e) => setSourcePat(e.target.value)}
-                                className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                id="sourceProject"
+                                placeholder="abcdefghijklmnopqrst"
+                                value={sourceProject}
+                                onChange={(e) => setSourceProject(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10"
                               />
-                              <button
-                                type="button"
-                                onClick={() => setShowSourcePat(!showSourcePat)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
-                              >
-                                {showSourcePat ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
                             </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="sourceProject" className="text-xs font-semibold text-zinc-400">Project Reference ID</Label>
-                            <Input
-                              id="sourceProject"
-                              placeholder="abcdefghijklmnopqrst"
-                              value={sourceProject}
-                              onChange={(e) => setSourceProject(e.target.value)}
-                              className="bg-zinc-950/30 border-white/10 h-10"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="sourceRegionInput" className="text-xs font-semibold text-zinc-400">Project Region</Label>
-                            <Input
-                              id="sourceRegionInput"
-                              list="region-options"
-                              placeholder="e.g. ap-northeast-2"
-                              value={sourceRegion}
-                              onChange={(e) => setSourceRegion(e.target.value)}
-                              className="bg-zinc-950/30 border-white/10 h-10"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="sourceDbPassword" className="text-xs font-semibold text-zinc-400">Database Password</Label>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>Needed for pg_dump connection</TooltipContent>
-                              </Tooltip>
-                            </div>
-                            <div className="relative">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="sourceRegionInput" className="text-xs font-semibold text-zinc-400">Project Region</Label>
                               <Input
-                                id="sourceDbPassword"
-                                type={showSourceDbPass ? "text" : "password"}
-                                value={sourceDbPassword}
-                                onChange={(e) => setSourceDbPassword(e.target.value)}
-                                className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                id="sourceRegionInput"
+                                list="region-options"
+                                placeholder="e.g. ap-northeast-2"
+                                value={sourceRegion}
+                                onChange={(e) => setSourceRegion(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10"
                               />
-                              <button
-                                type="button"
-                                onClick={() => setShowSourceDbPass(!showSourceDbPass)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="sourceDbPassword" className="text-xs font-semibold text-zinc-400">Database Password</Label>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>Needed for pg_dump connection</TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <div className="relative">
+                                <Input
+                                  id="sourceDbPassword"
+                                  type={showSourceDbPass ? "text" : "password"}
+                                  value={sourceDbPassword}
+                                  onChange={(e) => setSourceDbPassword(e.target.value)}
+                                  className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSourceDbPass(!showSourceDbPass)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                                >
+                                  {showSourceDbPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={testingSource}
+                                onClick={() => testConnection('source')}
+                                className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5"
                               >
-                                {showSourceDbPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
+                                {testingSource ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test Source Connection
+                              </Button>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={testingSource}
-                              onClick={() => testConnection('source')}
-                              className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5"
-                            >
-                              {testingSource ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
-                              Test Source Connection
-                            </Button>
-                          </div>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="sourceServiceRole" className="text-xs font-semibold text-zinc-400">Service Role Key</Label>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>Found in Settings {"->"} API</TooltipContent>
-                              </Tooltip>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="sourceServiceRole" className="text-xs font-semibold text-zinc-400">Service Role Key</Label>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>Found in Settings {"->"} API</TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <div className="relative">
+                                <Input
+                                  id="sourceServiceRole"
+                                  type={showSourceKey ? "text" : "password"}
+                                  value={sourceServiceRole}
+                                  onChange={(e) => setSourceServiceRole(e.target.value)}
+                                  className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSourceKey(!showSourceKey)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                                >
+                                  {showSourceKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
                             </div>
-                            <div className="relative">
+                          </TabsContent>
+                          
+                          <TabsContent value="generic" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="sourceConnectionString" className="text-xs font-semibold text-zinc-400">Connection String</Label>
                               <Input
-                                id="sourceServiceRole"
-                                type={showSourceKey ? "text" : "password"}
-                                value={sourceServiceRole}
-                                onChange={(e) => setSourceServiceRole(e.target.value)}
-                                className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                id="sourceConnectionString"
+                                placeholder="postgresql://user:pass@host:port/db or mysql://..."
+                                value={sourceConnectionString}
+                                onChange={(e) => setSourceConnectionString(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
                               />
-                              <button
-                                type="button"
-                                onClick={() => setShowSourceKey(!showSourceKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                              <p className="text-[10px] text-zinc-500 mt-1">Supports PostgreSQL, MySQL, and SQLite connection strings.</p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={testingSource}
+                                onClick={() => testConnection('source')}
+                                className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2"
                               >
-                                {showSourceKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
+                                {testingSource ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test Source Connection
+                              </Button>
                             </div>
-                          </div>
-                        </div>
+                          </TabsContent>
+                        </Tabs>
                       </div>
 
-                      {/* Target Project */}
+                      {/* Target Environment */}
                       <div className="space-y-4">
                         <h3 className="font-semibold flex items-center gap-2 text-sm text-cyan-400 bg-cyan-400/5 px-3 py-1.5 rounded-lg border border-cyan-400/10 w-fit">
                           <Database className="w-4 h-4" />
                           Target Environment
                         </h3>
-                        <div className="space-y-4">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <Label htmlFor="targetPat" className="text-xs font-semibold text-zinc-400">Personal Access Token</Label>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent>Requires access to Target Project</TooltipContent>
-                              </Tooltip>
+                        
+                        <Tabs value={targetType} onValueChange={(val) => setTargetType(val as DriverMode)} className="w-full">
+                          <TabsList className="grid w-full grid-cols-2 mb-4 bg-zinc-950/50 border border-white/5">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300">Supabase</TabsTrigger>
+                            <TabsTrigger value="generic" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300">Connection String</TabsTrigger>
+                          </TabsList>
+                          
+                          <TabsContent value="supabase" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor="targetPat" className="text-xs font-semibold text-zinc-400">Personal Access Token</Label>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="w-3.5 h-3.5 text-zinc-700 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent>Requires access to Target Project</TooltipContent>
+                                </Tooltip>
+                              </div>
+                              <div className="relative">
+                                <Input
+                                  id="targetPat"
+                                  type={showTargetPat ? "text" : "password"}
+                                  placeholder="sbp_..."
+                                  value={targetPat}
+                                  onChange={(e) => setTargetPat(e.target.value)}
+                                  className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowTargetPat(!showTargetPat)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                                >
+                                  {showTargetPat ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
                             </div>
-                            <div className="relative">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetProject" className="text-xs font-semibold text-zinc-400">Project Reference ID</Label>
                               <Input
-                                id="targetPat"
-                                type={showTargetPat ? "text" : "password"}
-                                placeholder="sbp_..."
-                                value={targetPat}
-                                onChange={(e) => setTargetPat(e.target.value)}
-                                className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                id="targetProject"
+                                placeholder="zyxwvutsrqponmlkjihg"
+                                value={targetProject}
+                                onChange={(e) => setTargetProject(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10"
                               />
-                              <button
-                                type="button"
-                                onClick={() => setShowTargetPat(!showTargetPat)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
-                              >
-                                {showTargetPat ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
                             </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="targetProject" className="text-xs font-semibold text-zinc-400">Project Reference ID</Label>
-                            <Input
-                              id="targetProject"
-                              placeholder="zyxwvutsrqponmlkjihg"
-                              value={targetProject}
-                              onChange={(e) => setTargetProject(e.target.value)}
-                              className="bg-zinc-950/30 border-white/10 h-10"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="targetRegionInput" className="text-xs font-semibold text-zinc-400">Project Region</Label>
-                            <Input
-                              id="targetRegionInput"
-                              list="region-options"
-                              placeholder="e.g. us-east-1"
-                              value={targetRegion}
-                              onChange={(e) => setTargetRegion(e.target.value)}
-                              className="bg-zinc-950/30 border-white/10 h-10"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="targetDbPassword" className="text-xs font-semibold text-zinc-400">Database Password</Label>
-                            <div className="relative">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetRegionInput" className="text-xs font-semibold text-zinc-400">Project Region</Label>
                               <Input
-                                id="targetDbPassword"
-                                type={showTargetDbPass ? "text" : "password"}
-                                value={targetDbPassword}
-                                onChange={(e) => setTargetDbPassword(e.target.value)}
-                                className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                id="targetRegionInput"
+                                list="region-options"
+                                placeholder="e.g. us-east-1"
+                                value={targetRegion}
+                                onChange={(e) => setTargetRegion(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10"
                               />
-                              <button
-                                type="button"
-                                onClick={() => setShowTargetDbPass(!showTargetDbPass)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
-                              >
-                                {showTargetDbPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={testingTarget}
-                              onClick={() => testConnection('target')}
-                              className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5"
-                            >
-                              {testingTarget ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
-                              Test Target Connection
-                            </Button>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor="targetServiceRole" className="text-xs font-semibold text-zinc-400">Service Role Key</Label>
-                            <div className="relative">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetDbPassword" className="text-xs font-semibold text-zinc-400">Database Password</Label>
+                              <div className="relative">
+                                <Input
+                                  id="targetDbPassword"
+                                  type={showTargetDbPass ? "text" : "password"}
+                                  value={targetDbPassword}
+                                  onChange={(e) => setTargetDbPassword(e.target.value)}
+                                  className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowTargetDbPass(!showTargetDbPass)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                                >
+                                  {showTargetDbPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={testingTarget}
+                                onClick={() => testConnection('target')}
+                                className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5"
+                              >
+                                {testingTarget ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test Target Connection
+                              </Button>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetServiceRole" className="text-xs font-semibold text-zinc-400">Service Role Key</Label>
+                              <div className="relative">
+                                <Input
+                                  id="targetServiceRole"
+                                  type={showTargetKey ? "text" : "password"}
+                                  value={targetServiceRole}
+                                  onChange={(e) => setTargetServiceRole(e.target.value)}
+                                  className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowTargetKey(!showTargetKey)}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                                >
+                                  {showTargetKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+                          </TabsContent>
+                          
+                          <TabsContent value="generic" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetConnectionString" className="text-xs font-semibold text-zinc-400">Connection String</Label>
                               <Input
-                                id="targetServiceRole"
-                                type={showTargetKey ? "text" : "password"}
-                                value={targetServiceRole}
-                                onChange={(e) => setTargetServiceRole(e.target.value)}
-                                className="bg-zinc-950/30 border-white/10 pr-10 h-10"
+                                id="targetConnectionString"
+                                placeholder="postgresql://user:pass@host:port/db or mysql://..."
+                                value={targetConnectionString}
+                                onChange={(e) => setTargetConnectionString(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
                               />
-                              <button
-                                type="button"
-                                onClick={() => setShowTargetKey(!showTargetKey)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-white transition-colors"
+                              <p className="text-[10px] text-zinc-500 mt-1">Supports PostgreSQL, MySQL, and SQLite connection strings.</p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={testingTarget}
+                                onClick={() => testConnection('target')}
+                                className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2"
                               >
-                                {showTargetKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
+                                {testingTarget ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test Target Connection
+                              </Button>
                             </div>
-                          </div>
-                        </div>
+                          </TabsContent>
+                        </Tabs>
                       </div>
                     </div>
                   </CardContent>
@@ -900,7 +1086,7 @@ export default function MigrationWizard() {
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                       <div className="bg-cyan-500/5 border border-cyan-500/10 p-3 rounded-xl mb-4 text-[11px] leading-relaxed text-cyan-300">
-                        <p><strong>Note:</strong> Your migration might succeed even with an incorrect region. This tool automatically queries the Supabase Management API to find the absolute most reliable connection path.</p>
+                        <p><strong>Note:</strong> For Supabase migrations, the tool automatically queries the Management API to find the most reliable connection path — even with an incorrect region.</p>
                       </div>
                       <ul className="space-y-3">
                         <li className="flex items-start gap-3 text-sm">
@@ -961,13 +1147,15 @@ export default function MigrationWizard() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                        <div className={`grid grid-cols-1 ${sourceType === 'supabase' && targetType === 'supabase' ? 'md:grid-cols-5' : 'md:grid-cols-3'} gap-2`}>
                           {[
                             { step: 10, label: "Auth" },
                             { step: 30, label: "Schema" },
                             { step: 60, label: "Data" },
-                            { step: 85, label: "Storage" },
-                            { step: 100, label: "Functions" }
+                            ...(sourceType === 'supabase' && targetType === 'supabase' ? [
+                              { step: 85, label: "Storage" },
+                              { step: 100, label: "Functions" }
+                            ] : [])
                           ].map((m, index) => (
                             <div key={m.step} className={`p-3 rounded-xl border transition-all flex flex-col items-center text-center gap-2 ${progress >= m.step ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/5'}`}>
                               <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${progress >= m.step ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
@@ -1023,16 +1211,20 @@ export default function MigrationWizard() {
                               <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Schema</span>
                               <span className="text-emerald-400 text-xs font-mono">OK</span>
                             </div>
-                            <div className="w-px h-6 bg-white/5" />
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Storage</span>
-                              <span className="text-emerald-400 text-xs font-mono">OK</span>
-                            </div>
-                            <div className="w-px h-6 bg-white/5" />
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Functions</span>
-                              <span className="text-emerald-400 text-xs font-mono">OK</span>
-                            </div>
+                            {sourceType === 'supabase' && targetType === 'supabase' && (
+                              <>
+                                <div className="w-px h-6 bg-white/5" />
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Storage</span>
+                                  <span className="text-emerald-400 text-xs font-mono">OK</span>
+                                </div>
+                                <div className="w-px h-6 bg-white/5" />
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Functions</span>
+                                  <span className="text-emerald-400 text-xs font-mono">OK</span>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       )}

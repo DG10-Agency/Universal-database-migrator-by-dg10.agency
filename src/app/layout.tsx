@@ -16,8 +16,8 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 
 export const metadata: Metadata = {
-  title: "Supabase Migrator | DG10.Agency",
-  description: "The professional one-click migration engine for Supabase projects.",
+  title: "Universal Database Migrator Open Source",
+  description: "The professional open-source migration engine for Supabase, PostgreSQL, MySQL, and SQLite.",
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",
