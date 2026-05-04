@@ -701,18 +701,18 @@ export default function MigrationWizard() {
                         </h3>
                         
                         <Tabs value={sourceType} onValueChange={(val) => setSourceType(val as DriverMode)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5 h-auto min-h-[40px] p-1 gap-1 group-data-[orientation=horizontal]/tabs:h-auto !flex !items-stretch">
-                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Zap className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Supabase</span>
+                          <TabsList className="!grid w-full grid-cols-2 sm:grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5 h-auto min-h-[40px] p-1 gap-1 group-data-[orientation=horizontal]/tabs:h-auto">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Zap className="size-3.5 shrink-0" /> <span className="truncate">Supabase</span>
                             </TabsTrigger>
-                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Postgres</span>
+                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Database className="size-3.5 shrink-0" /> <span className="truncate">Postgres</span>
                             </TabsTrigger>
-                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Server className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">MySQL</span>
+                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Server className="size-3.5 shrink-0" /> <span className="truncate">MySQL</span>
                             </TabsTrigger>
-                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">SQLite</span>
+                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Database className="size-3.5 shrink-0" /> <span className="truncate">SQLite</span>
                             </TabsTrigger>
                           </TabsList>
                           
@@ -893,18 +893,18 @@ export default function MigrationWizard() {
                         </h3>
                         
                         <Tabs value={targetType} onValueChange={(val) => setTargetType(val as DriverMode)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5 h-auto min-h-[40px] p-1 gap-1 group-data-[orientation=horizontal]/tabs:h-auto !flex !items-stretch">
-                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Zap className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Supabase</span>
+                          <TabsList className="!grid w-full grid-cols-2 sm:grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5 h-auto min-h-[40px] p-1 gap-1 group-data-[orientation=horizontal]/tabs:h-auto">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Zap className="size-3.5 shrink-0" /> <span className="truncate">Supabase</span>
                             </TabsTrigger>
-                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Postgres</span>
+                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Database className="size-3.5 shrink-0" /> <span className="truncate">Postgres</span>
                             </TabsTrigger>
-                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Server className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">MySQL</span>
+                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Server className="size-3.5 shrink-0" /> <span className="truncate">MySQL</span>
                             </TabsTrigger>
-                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
-                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">SQLite</span>
+                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center justify-center gap-2 py-2 px-1 text-[10px] sm:text-xs h-auto min-h-[36px] w-full">
+                              <Database className="size-3.5 shrink-0" /> <span className="truncate">SQLite</span>
                             </TabsTrigger>
                           </TabsList>
                           
