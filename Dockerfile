@@ -12,17 +12,21 @@ RUN apt-get update && apt-get install -y \
     git \
     zip \
     ca-certificates \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Supabase CLI via direct binary (more reliable than npm in Docker)
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then SUPA_ARCH="amd64"; else SUPA_ARCH="arm64"; fi && \
-    set -x && \
-    BIN_URL=$(curl -s -H "User-Agent: Supabase-Installer" "https://api.github.com/repos/supabase/cli/releases/latest" | grep "browser_download_url" | grep "linux_${SUPA_ARCH}.tar.gz" | cut -d '"' -f 4) && \
-    curl -L "$BIN_URL" -o supabase.tar.gz && \
+    set -ex && \
+    RELEASE_JSON=$(curl -fsSL -H "User-Agent: Supabase-Installer" "https://api.github.com/repos/supabase/cli/releases/latest") && \
+    BIN_URL=$(echo "$RELEASE_JSON" | jq -r ".assets[] | select(.name == \"supabase_linux_${SUPA_ARCH}.tar.gz\") | .browser_download_url") && \
+    if [ -z "$BIN_URL" ]; then echo "Error: Could not find download URL for ${SUPA_ARCH}" && exit 1; fi && \
+    curl -fsSL "$BIN_URL" -o supabase.tar.gz && \
     tar -xzf supabase.tar.gz -C /usr/local/bin && \
     rm supabase.tar.gz && \
-    chmod +x /usr/local/bin/supabase
+    chmod +x /usr/local/bin/supabase && \
+    supabase --version
 
 WORKDIR /app
 
