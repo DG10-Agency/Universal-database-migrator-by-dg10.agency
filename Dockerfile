@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     default-mysql-client \
     sqlite3 \
     curl \
+    git \
+    zip \
     && npm install -g supabase \
     && rm -rf /var/lib/apt/lists/*
 

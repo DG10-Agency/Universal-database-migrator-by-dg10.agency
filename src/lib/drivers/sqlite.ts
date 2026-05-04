@@ -20,7 +20,7 @@ export class SQLiteDriver implements IDatabaseDriver {
         try {
             const sqlitePath = await getBinaryPath('sqlite3');
             const dbPath = config.connectionString || config.database || 'local.db';
-            await this.spawnAsync(`${sqlitePath} ${dbPath} "SELECT 1"`, {}, () => {});
+            await this.spawnAsync(`${sqlitePath} "${dbPath}" "SELECT 1"`, {}, () => {});
             return { success: true, message: `Connected to SQLite file: ${dbPath}` };
         } catch (e: any) {
             return { success: false, message: e.message };
@@ -37,7 +37,7 @@ export class SQLiteDriver implements IDatabaseDriver {
         const dbPath = config.connectionString || config.database || 'local.db';
 
         onProgress(40, "Dumping SQLite Database...");
-        await this.spawnAsync(`${sqlitePath} ${dbPath} ".dump" > "${dataFile}"`, { signal }, onLog);
+        await this.spawnAsync(`${sqlitePath} "${dbPath}" ".dump" > "${dataFile}"`, { signal }, onLog);
 
         return { dataFile, tempDir: tmpDir };
     }
@@ -49,7 +49,7 @@ export class SQLiteDriver implements IDatabaseDriver {
 
         if (artifacts.dataFile) {
             onProgress(80, "Restoring SQLite Database (ignoring FK constraints)...");
-            const restoreCmd = `(echo "PRAGMA foreign_keys = OFF;"; cat "${artifacts.dataFile}"; echo "PRAGMA foreign_keys = ON;") | ${sqlitePath} ${dbPath}`;
+            const restoreCmd = `(echo "PRAGMA foreign_keys = OFF;"; cat "${artifacts.dataFile}"; echo "PRAGMA foreign_keys = ON;") | ${sqlitePath} "${dbPath}"`;
             await this.spawnAsync(restoreCmd, { signal }, onLog);
         }
     }
