@@ -16,20 +16,39 @@ export class MySQLDriver implements IDatabaseDriver {
         });
     }
 
-    private getConnectionString(config: ConnectionConfig) {
-        if (config.connectionString) return config.connectionString;
-        // Construct from parts
-        return `--host=${config.host || 'localhost'} --port=${config.port || 3306} --user=${config.user} --password=${config.password} ${config.database}`;
+    private parseConnectionString(cs: string) {
+        try {
+            // mysql://user:pass@host:port/database
+            const url = new URL(cs);
+            return {
+                host: url.hostname || 'localhost',
+                port: url.port || '3306',
+                user: url.username,
+                password: decodeURIComponent(url.password),
+                database: url.pathname.slice(1),
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
+    private getConnectFlags(config: ConnectionConfig) {
+        if (config.connectionString) {
+            const parsed = this.parseConnectionString(config.connectionString);
+            if (parsed) {
+                return `-h ${parsed.host} -P ${parsed.port} -u ${parsed.user} -p${parsed.password} ${parsed.database}`;
+            }
+            return config.connectionString; // Fallback to raw if not URI
+        }
+        return `-h ${config.host || 'localhost'} -P ${config.port || 3306} -u ${config.user} -p${config.password} ${config.database}`;
     }
 
     async testConnection(config: ConnectionConfig) {
         try {
             const mysqlPath = await getBinaryPath('mysql');
-            const cmd = config.connectionString 
-                ? `${mysqlPath} "${config.connectionString}" -e "SELECT 1"`
-                : `${mysqlPath} -h ${config.host || 'localhost'} -P ${config.port || 3306} -u ${config.user} -p${config.password} -e "SELECT 1"`;
-            
-            await this.spawnAsync(cmd, {}, () => {});
+            const flags = this.getConnectFlags(config);
+            // We use -e "SELECT 1" to test
+            await this.spawnAsync(`${mysqlPath} ${flags} -e "SELECT 1"`, {}, () => {});
             return { success: true, message: "Connected to MySQL successfully" };
         } catch (e: any) {
             return { success: false, message: e.message };
@@ -43,11 +62,12 @@ export class MySQLDriver implements IDatabaseDriver {
 
         const dataFile = path.join(tmpDir, 'data.sql');
         const mysqldumpPath = await getBinaryPath('mysqldump');
+        const flags = this.getConnectFlags(config);
 
-        onProgress(40, "Dumping MySQL Database...");
-        const cmd = config.connectionString
-            ? `${mysqldumpPath} "${config.connectionString}" > "${dataFile}"`
-            : `${mysqldumpPath} -h ${config.host || 'localhost'} -P ${config.port || 3306} -u ${config.user} -p${config.password} --databases ${config.database} > "${dataFile}"`;
+        onProgress(40, "Dumping MySQL Database (with consistent snapshot)...");
+        // Added --single-transaction for consistency without locking
+        // Added --routines and --triggers for full migration
+        const cmd = `${mysqldumpPath} ${flags} --single-transaction --routines --triggers > "${dataFile}"`;
 
         await this.spawnAsync(cmd, { signal }, onLog);
 
@@ -57,14 +77,14 @@ export class MySQLDriver implements IDatabaseDriver {
     async restore(config: ConnectionConfig, artifacts: MigrationArtifacts, options: MigrationOptions): Promise<void> {
         const { onProgress, onLog, signal } = options;
         const mysqlPath = await getBinaryPath('mysql');
+        const flags = this.getConnectFlags(config);
 
         if (artifacts.dataFile) {
-            onProgress(80, "Restoring MySQL Database...");
-            const cmd = config.connectionString
-                ? `${mysqlPath} "${config.connectionString}" < "${artifacts.dataFile}"`
-                : `${mysqlPath} -h ${config.host || 'localhost'} -P ${config.port || 3306} -u ${config.user} -p${config.password} ${config.database} < "${artifacts.dataFile}"`;
+            onProgress(80, "Restoring MySQL Database (ignoring FK constraints)...");
+            // Wrap in FK check bypass
+            const restoreCmd = `(echo "SET FOREIGN_KEY_CHECKS = 0;"; cat "${artifacts.dataFile}"; echo "SET FOREIGN_KEY_CHECKS = 1;") | ${mysqlPath} ${flags}`;
 
-            await this.spawnAsync(cmd, { signal }, onLog);
+            await this.spawnAsync(restoreCmd, { signal }, onLog);
         }
     }
 

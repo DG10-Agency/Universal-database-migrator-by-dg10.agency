@@ -48,8 +48,9 @@ export class SQLiteDriver implements IDatabaseDriver {
         const dbPath = config.connectionString || config.database || 'target.db';
 
         if (artifacts.dataFile) {
-            onProgress(80, "Restoring SQLite Database...");
-            await this.spawnAsync(`${sqlitePath} ${dbPath} < "${artifacts.dataFile}"`, { signal }, onLog);
+            onProgress(80, "Restoring SQLite Database (ignoring FK constraints)...");
+            const restoreCmd = `(echo "PRAGMA foreign_keys = OFF;"; cat "${artifacts.dataFile}"; echo "PRAGMA foreign_keys = ON;") | ${sqlitePath} ${dbPath}`;
+            await this.spawnAsync(restoreCmd, { signal }, onLog);
         }
     }
 

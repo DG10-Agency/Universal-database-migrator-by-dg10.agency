@@ -40,14 +40,14 @@ const SUPABASE_REGIONS = [
   { value: "ca-central-1", label: "Canada (Central) [ca-central-1]" },
 ];
 
-type DriverMode = 'supabase' | 'generic';
+type DriverMode = 'supabase' | 'postgres' | 'mysql' | 'sqlite';
 
-const isValidConnectionString = (cs: string) => {
+const isValidConnectionString = (cs: string, type: DriverMode) => {
   if (!cs) return false;
-  const isPostgres = /^postgre(s|sql):\/\/.+/i.test(cs);
-  const isMysql = /^mysql:\/\/.+/i.test(cs);
-  const isSqlite = /^.+\.(db|sqlite)$/i.test(cs);
-  return isPostgres || isMysql || isSqlite;
+  if (type === 'postgres') return /^postgre(s|sql):\/\/.+/i.test(cs);
+  if (type === 'mysql') return /^mysql:\/\/.+/i.test(cs);
+  if (type === 'sqlite') return /^.+\.(db|sqlite)$/i.test(cs);
+  return false;
 };
 
 export default function MigrationWizard() {
@@ -180,6 +180,11 @@ export default function MigrationWizard() {
     return { connectionString: isSource ? sourceConnectionString : targetConnectionString };
   };
 
+  const getEngine = (type: DriverMode) => {
+    if (type === 'supabase' || type === 'postgres') return 'postgres';
+    return type;
+  };
+
   const handleMigration = async () => {
     // Validation per mode
     if (sourceType === 'supabase') {
@@ -197,8 +202,8 @@ export default function MigrationWizard() {
         toast.error('Please provide a Source connection string.');
         return;
       }
-      if (!isValidConnectionString(sourceConnectionString)) {
-        toast.error('Invalid Source connection string format. Must be postgresql://..., mysql://..., or end in .db/.sqlite');
+      if (!isValidConnectionString(sourceConnectionString, sourceType)) {
+        toast.error(`Invalid Source connection string for ${sourceType}.`);
         return;
       }
     }
@@ -218,14 +223,19 @@ export default function MigrationWizard() {
         toast.error('Please provide a Target connection string.');
         return;
       }
-      if (!isValidConnectionString(targetConnectionString)) {
-        toast.error('Invalid Target connection string format. Must be postgresql://..., mysql://..., or end in .db/.sqlite');
+      if (!isValidConnectionString(targetConnectionString, targetType)) {
+        toast.error(`Invalid Target connection string for ${targetType}.`);
         return;
       }
     }
 
     if (sourceType === 'supabase' && targetType === 'supabase' && sourceProject === targetProject) {
       toast.error("Source and Target projects cannot be the same.");
+      return;
+    }
+
+    if (getEngine(sourceType) !== getEngine(targetType)) {
+      toast.error(`Cross-dialect migrations (${getEngine(sourceType)} to ${getEngine(targetType)}) are not yet supported.`);
       return;
     }
 
@@ -376,8 +386,8 @@ export default function MigrationWizard() {
         toast.error(`Please provide a connection string for the ${type} first.`);
         return;
       }
-      if (!isValidConnectionString(cs)) {
-        toast.error(`Invalid ${type} connection string format. Must be postgresql://..., mysql://..., or end in .db/.sqlite`);
+      if (!isValidConnectionString(cs, mode)) {
+        toast.error(`Invalid ${type} connection string format for ${mode}.`);
         return;
       }
     }
@@ -476,14 +486,14 @@ export default function MigrationWizard() {
                   <li className="flex items-center gap-2 text-sm text-zinc-300">
                     <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Database Schema & Data
                   </li>
-                  <li className="flex items-center gap-2 text-sm text-zinc-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Storage Buckets & Files
+                  <li className={`flex items-center gap-2 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    <CheckCircle2 className={`w-4 h-4 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} /> Storage Buckets & Files
                   </li>
-                  <li className="flex items-center gap-2 text-sm text-zinc-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Auth Users & Settings
+                  <li className={`flex items-center gap-2 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    <CheckCircle2 className={`w-4 h-4 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} /> Auth Users & Settings
                   </li>
-                  <li className="flex items-center gap-2 text-sm text-zinc-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Edge Functions
+                  <li className={`flex items-center gap-2 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    <CheckCircle2 className={`w-4 h-4 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} /> Edge Functions
                   </li>
                 </ul>
               </div>
@@ -572,10 +582,10 @@ export default function MigrationWizard() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
                       <Settings className="w-5 h-5 text-emerald-400" />
-                      Credentials & Projects
+                      Platform & Engine Selection
                     </CardTitle>
                     <CardDescription className="text-zinc-500">
-                      Map your source and target environments.
+                      Select your source and target database architectures.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
@@ -587,28 +597,25 @@ export default function MigrationWizard() {
                         // Check source dependencies
                         if (sourceType === 'supabase' && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
                           missing.push('PostgreSQL Client Tools (psql, pg_dump)');
-                        } else if (sourceType === 'generic') {
-                           if (sourceConnectionString.toLowerCase().startsWith('mysql') && (!deps.dependencies.mysql || !deps.dependencies.mysqldump)) {
-                             missing.push('MySQL Client Tools (mysql, mysqldump)');
-                           } else if ((sourceConnectionString.toLowerCase().startsWith('postgres') || sourceConnectionString === '') && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
-                             missing.push('PostgreSQL Client Tools (psql, pg_dump)');
-                           } else if ((sourceConnectionString.toLowerCase().endsWith('.db') || sourceConnectionString.toLowerCase().endsWith('.sqlite')) && !deps.dependencies.sqlite) {
-                             missing.push('SQLite Client Tools (sqlite3)');
-                           }
+                        } else if (sourceType === 'postgres' && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
+                          missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                        } else if (sourceType === 'mysql' && (!deps.dependencies.mysql || !deps.dependencies.mysqldump)) {
+                          missing.push('MySQL Client Tools (mysql, mysqldump)');
+                        } else if (sourceType === 'sqlite' && !deps.dependencies.sqlite) {
+                          missing.push('SQLite Client Tools (sqlite3)');
                         }
 
                         // Check target dependencies
                         if (targetType === 'supabase' && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
-                          if (!missing.includes('PostgreSQL Client Tools (psql, pg_dump)')) missing.push('PostgreSQL Client Tools (psql, pg_dump)');
-                        } else if (targetType === 'generic') {
-                           if (targetConnectionString.toLowerCase().startsWith('mysql') && (!deps.dependencies.mysql || !deps.dependencies.mysqldump)) {
-                             if (!missing.includes('MySQL Client Tools (mysql, mysqldump)')) missing.push('MySQL Client Tools (mysql, mysqldump)');
-                           } else if ((targetConnectionString.toLowerCase().startsWith('postgres') || targetConnectionString === '') && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
-                             if (!missing.includes('PostgreSQL Client Tools (psql, pg_dump)')) missing.push('PostgreSQL Client Tools (psql, pg_dump)');
-                           } else if ((targetConnectionString.toLowerCase().endsWith('.db') || targetConnectionString.toLowerCase().endsWith('.sqlite')) && !deps.dependencies.sqlite) {
-                             if (!missing.includes('SQLite Client Tools (sqlite3)')) missing.push('SQLite Client Tools (sqlite3)');
-                           }
+                          missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                        } else if (targetType === 'postgres' && (!deps.dependencies.psql || !deps.dependencies.pg_dump)) {
+                          missing.push('PostgreSQL Client Tools (psql, pg_dump)');
+                        } else if (targetType === 'mysql' && (!deps.dependencies.mysql || !deps.dependencies.mysqldump)) {
+                          missing.push('MySQL Client Tools (mysql, mysqldump)');
+                        } else if (targetType === 'sqlite' && !deps.dependencies.sqlite) {
+                          missing.push('SQLite Client Tools (sqlite3)');
                         }
+
 
                         if (missing.length === 0) return null;
 
@@ -645,9 +652,19 @@ export default function MigrationWizard() {
                         </h3>
                         
                         <Tabs value={sourceType} onValueChange={(val) => setSourceType(val as DriverMode)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 mb-4 bg-zinc-950/50 border border-white/5">
-                            <TabsTrigger value="supabase" className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-300">Supabase</TabsTrigger>
-                            <TabsTrigger value="generic" className="data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-300">Connection String</TabsTrigger>
+                          <TabsList className="grid w-full grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center gap-2">
+                              <Zap className="w-3.5 h-3.5" /> Supabase
+                            </TabsTrigger>
+                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center gap-2">
+                              <Database className="w-3.5 h-3.5" /> Postgres
+                            </TabsTrigger>
+                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center gap-2">
+                              <Server className="w-3.5 h-3.5" /> MySQL
+                            </TabsTrigger>
+                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center gap-2">
+                              <Database className="w-3.5 h-3.5" /> SQLite
+                            </TabsTrigger>
                           </TabsList>
                           
                           <TabsContent value="supabase" className="space-y-4 mt-0">
@@ -766,26 +783,53 @@ export default function MigrationWizard() {
                             </div>
                           </TabsContent>
                           
-                          <TabsContent value="generic" className="space-y-4 mt-0">
+                          <TabsContent value="postgres" className="space-y-4 mt-0">
                             <div className="space-y-1.5">
-                              <Label htmlFor="sourceConnectionString" className="text-xs font-semibold text-zinc-400">Connection String</Label>
+                              <Label htmlFor="sourceConnPostgres" className="text-xs font-semibold text-zinc-400">PostgreSQL Connection String</Label>
                               <Input
-                                id="sourceConnectionString"
-                                placeholder="postgresql://user:pass@host:port/db or mysql://..."
+                                id="sourceConnPostgres"
+                                placeholder="postgresql://user:pass@host:port/dbname"
                                 value={sourceConnectionString}
                                 onChange={(e) => setSourceConnectionString(e.target.value)}
                                 className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
                               />
-                              <p className="text-[10px] text-zinc-500 mt-1">Supports PostgreSQL, MySQL, and SQLite connection strings.</p>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={testingSource}
-                                onClick={() => testConnection('source')}
-                                className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2"
-                              >
+                              <Button variant="ghost" size="sm" disabled={testingSource} onClick={() => testConnection('source')} className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2">
                                 {testingSource ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
-                                Test Source Connection
+                                Test PostgreSQL Connection
+                              </Button>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="mysql" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="sourceConnMysql" className="text-xs font-semibold text-zinc-400">MySQL Connection String</Label>
+                              <Input
+                                id="sourceConnMysql"
+                                placeholder="mysql://user:pass@host:port/dbname"
+                                value={sourceConnectionString}
+                                onChange={(e) => setSourceConnectionString(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
+                              />
+                              <Button variant="ghost" size="sm" disabled={testingSource} onClick={() => testConnection('source')} className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2">
+                                {testingSource ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test MySQL Connection
+                              </Button>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="sqlite" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="sourceConnSqlite" className="text-xs font-semibold text-zinc-400">SQLite Database Path</Label>
+                              <Input
+                                id="sourceConnSqlite"
+                                placeholder="/path/to/database.db"
+                                value={sourceConnectionString}
+                                onChange={(e) => setSourceConnectionString(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
+                              />
+                              <Button variant="ghost" size="sm" disabled={testingSource} onClick={() => testConnection('source')} className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2">
+                                {testingSource ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test SQLite Connection
                               </Button>
                             </div>
                           </TabsContent>
@@ -800,9 +844,19 @@ export default function MigrationWizard() {
                         </h3>
                         
                         <Tabs value={targetType} onValueChange={(val) => setTargetType(val as DriverMode)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 mb-4 bg-zinc-950/50 border border-white/5">
-                            <TabsTrigger value="supabase" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300">Supabase</TabsTrigger>
-                            <TabsTrigger value="generic" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300">Connection String</TabsTrigger>
+                          <TabsList className="grid w-full grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center gap-2">
+                              <Zap className="w-3.5 h-3.5" /> Supabase
+                            </TabsTrigger>
+                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center gap-2">
+                              <Database className="w-3.5 h-3.5" /> Postgres
+                            </TabsTrigger>
+                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center gap-2">
+                              <Server className="w-3.5 h-3.5" /> MySQL
+                            </TabsTrigger>
+                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center gap-2">
+                              <Database className="w-3.5 h-3.5" /> SQLite
+                            </TabsTrigger>
                           </TabsList>
                           
                           <TabsContent value="supabase" className="space-y-4 mt-0">
@@ -905,26 +959,53 @@ export default function MigrationWizard() {
                             </div>
                           </TabsContent>
                           
-                          <TabsContent value="generic" className="space-y-4 mt-0">
+                          <TabsContent value="postgres" className="space-y-4 mt-0">
                             <div className="space-y-1.5">
-                              <Label htmlFor="targetConnectionString" className="text-xs font-semibold text-zinc-400">Connection String</Label>
+                              <Label htmlFor="targetConnPostgres" className="text-xs font-semibold text-zinc-400">PostgreSQL Connection String</Label>
                               <Input
-                                id="targetConnectionString"
-                                placeholder="postgresql://user:pass@host:port/db or mysql://..."
+                                id="targetConnPostgres"
+                                placeholder="postgresql://user:pass@host:port/dbname"
                                 value={targetConnectionString}
                                 onChange={(e) => setTargetConnectionString(e.target.value)}
                                 className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
                               />
-                              <p className="text-[10px] text-zinc-500 mt-1">Supports PostgreSQL, MySQL, and SQLite connection strings.</p>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={testingTarget}
-                                onClick={() => testConnection('target')}
-                                className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2"
-                              >
+                              <Button variant="ghost" size="sm" disabled={testingTarget} onClick={() => testConnection('target')} className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2">
                                 {testingTarget ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
-                                Test Target Connection
+                                Test PostgreSQL Connection
+                              </Button>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="mysql" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetConnMysql" className="text-xs font-semibold text-zinc-400">MySQL Connection String</Label>
+                              <Input
+                                id="targetConnMysql"
+                                placeholder="mysql://user:pass@host:port/dbname"
+                                value={targetConnectionString}
+                                onChange={(e) => setTargetConnectionString(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
+                              />
+                              <Button variant="ghost" size="sm" disabled={testingTarget} onClick={() => testConnection('target')} className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2">
+                                {testingTarget ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test MySQL Connection
+                              </Button>
+                            </div>
+                          </TabsContent>
+
+                          <TabsContent value="sqlite" className="space-y-4 mt-0">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="targetConnSqlite" className="text-xs font-semibold text-zinc-400">SQLite Database Path</Label>
+                              <Input
+                                id="targetConnSqlite"
+                                placeholder="/path/to/database.db"
+                                value={targetConnectionString}
+                                onChange={(e) => setTargetConnectionString(e.target.value)}
+                                className="bg-zinc-950/30 border-white/10 h-10 font-mono text-xs"
+                              />
+                              <Button variant="ghost" size="sm" disabled={testingTarget} onClick={() => testConnection('target')} className="w-full h-8 text-xs bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 mt-2">
+                                {testingTarget ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <ShieldCheck className="w-3 h-3 mr-2 text-emerald-500" />}
+                                Test SQLite Connection
                               </Button>
                             </div>
                           </TabsContent>

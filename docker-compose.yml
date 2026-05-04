@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  db-migrator:
+    image: ghcr.io/dg10-agency/complete-supabase-one-click-migration-by-dg10.agency:main
+    container_name: universal-db-migrator
+    restart: always
+    ports:
+      - "3003:3000"
+    environment:
+      - NODE_ENV=production
+      # Add any custom ENV vars here if needed
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

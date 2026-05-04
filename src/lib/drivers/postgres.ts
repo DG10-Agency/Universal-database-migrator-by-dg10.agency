@@ -125,11 +125,11 @@ export class PostgresDriver implements IDatabaseDriver {
         // 2. Schema
         onProgress(45, "Dumping Schema...");
         const exclude = `--exclude-schema="supabase_migrations" --exclude-schema="pgbouncer" --exclude-schema="graphql*" --exclude-schema="realtime" --exclude-schema="vault"`;
-        await this.spawnAsync(`${pgDumpPath} --schema-only --clean --if-exists ${exclude} --dbname="${res.url}" --file="${schemaFile}"`, { env, signal }, onLog);
+        await this.spawnAsync(`${pgDumpPath} --schema-only --no-owner --no-privileges --clean --if-exists ${exclude} --dbname="${res.url}" --file="${schemaFile}"`, { env, signal }, onLog);
 
         // 3. Data
         onProgress(65, "Dumping Data...");
-        await this.spawnAsync(`${pgDumpPath} --data-only ${exclude} --dbname="${res.url}" --file="${dataFile}"`, { env, signal }, onLog);
+        await this.spawnAsync(`${pgDumpPath} --data-only --no-owner --no-privileges ${exclude} --dbname="${res.url}" --file="${dataFile}"`, { env, signal }, onLog);
 
         return { rolesFile, schemaFile, dataFile, tempDir: tmpDir };
     }
