@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { ArrowRight, CheckCircle2, Copy, Eye, EyeOff, Loader2, Play, Database, Server, RefreshCw, Key, Shield, ShieldCheck, Info, Filter, Globe, Code2, AlertTriangle, Lock, ExternalLink, Github, Coffee, History as HistoryIcon, Settings, Terminal, Zap } from "lucide-react";
+import { ArrowRight, CheckCircle2, Copy, Eye, EyeOff, Loader2, Play, Database, Server, RefreshCw, Key, Shield, ShieldCheck, Info, Filter, Globe, Code2, AlertTriangle, Lock, ExternalLink, Github, Coffee, History as HistoryIcon, Settings, Terminal, Zap, Menu, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -74,6 +74,7 @@ export default function MigrationWizard() {
   const [testingTarget, setTestingTarget] = useState(false);
   const [deps, setDeps] = useState<{ ready: boolean, dependencies: { psql: boolean, pg_dump: boolean, mysql?: boolean, mysqldump?: boolean, sqlite?: boolean } } | null>(null);
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -432,115 +433,150 @@ export default function MigrationWizard() {
     <TooltipProvider>
       <Tabs value={activeTab} onValueChange={setActiveTab} className="h-screen w-screen bg-zinc-950 text-zinc-100 flex flex-col overflow-hidden font-sans">
         {/* Header */}
-        <header className="h-16 border-b border-white/5 flex items-center px-8 justify-between shrink-0 bg-zinc-950/50 backdrop-blur-xl z-50">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg bg-zinc-900">
+        <header className="h-16 border-b border-white/5 flex items-center px-4 md:px-8 justify-between shrink-0 bg-zinc-950/50 backdrop-blur-xl z-[60] sticky top-0">
+          <div className="flex items-center gap-3 shrink-0">
+            <button 
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 -ml-2 text-zinc-400 hover:text-white md:hidden transition-colors"
+              aria-label="Toggle Menu"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl flex items-center justify-center overflow-hidden border border-white/10 shadow-lg bg-zinc-900 shrink-0">
               <img src="/logo.png" alt="Database Migrator Logo" className="w-full h-full object-cover scale-110" />
             </div>
-            <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
-              Universal Database Migrator Open Source
+            <h1 className="text-xs md:text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400 truncate max-w-[120px] xs:max-w-[150px] sm:max-w-none">
+              Universal Migrator
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <a href="https://github.com" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-white transition-colors">
-              <Github className="w-5 h-5" />
-            </a>
+          
+          <div className="flex items-center gap-1 sm:gap-4 overflow-hidden">
+            <div className="hidden lg:flex items-center gap-4">
+              <a href="https://github.com" target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-white transition-colors">
+                <Github className="w-5 h-5" />
+              </a>
+              <div className="h-6 w-px bg-white/10" />
+            </div>
 
-            <div className="h-6 w-px bg-white/10 mx-2" />
-
-            <TabsList className="flex bg-zinc-900/50 border border-white/5 p-1 h-9 rounded-lg">
-              <TabsTrigger value="setup" className="px-3 text-xs data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400 transition-all h-full rounded-md font-medium">
-                Configuration
+            <TabsList className="flex bg-zinc-900/50 border border-white/5 p-1 h-9 rounded-lg overflow-x-auto no-scrollbar shrink-0">
+              <TabsTrigger value="setup" className="px-2 md:px-3 text-[10px] md:text-xs data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400 transition-all h-full rounded-md font-medium whitespace-nowrap">
+                Config
               </TabsTrigger>
-              <TabsTrigger value="progress" disabled={!isMigrating && progress === 0} className="px-3 text-xs data-[state=active]:bg-zinc-800 data-[state=active]:text-cyan-400 transition-all h-full rounded-md font-medium">
+              <TabsTrigger value="progress" disabled={!isMigrating && progress === 0} className="px-2 md:px-3 text-[10px] md:text-xs data-[state=active]:bg-zinc-800 data-[state=active]:text-cyan-400 transition-all h-full rounded-md font-medium whitespace-nowrap">
                 Status
               </TabsTrigger>
-              <TabsTrigger value="insights" className="px-3 text-xs data-[state=active]:bg-zinc-800 data-[state=active]:text-amber-400 transition-all h-full rounded-md font-medium">
+              <TabsTrigger value="insights" className="px-2 md:px-3 text-[10px] md:text-xs data-[state=active]:bg-zinc-800 data-[state=active]:text-amber-400 transition-all h-full rounded-md font-medium whitespace-nowrap">
                 Insights
               </TabsTrigger>
             </TabsList>
 
-            <div className="h-6 w-px bg-white/10 mx-2" />
-
-            <Link href="/guide">
-              <Button variant="outline" size="sm" className="bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 h-8">
-                <Info className="w-4 h-4 mr-2" />
-                Help & Guide
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="h-6 w-px bg-white/10 mx-1" />
+              <Link href="/guide" className="hidden md:block">
+                <Button variant="outline" size="sm" className="bg-blue-500/10 border-blue-500/20 text-blue-400 hover:bg-blue-500/20 h-8">
+                  <Info className="w-4 h-4 mr-2" />
+                  Guide
+                </Button>
+              </Link>
+              <Button variant="outline" size="sm" className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 h-8">
+                <Coffee className="w-4 h-4 md:mr-2" />
+                <span className="hidden md:inline">Support</span>
               </Button>
-            </Link>
-            <Button variant="outline" size="sm" className="bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 h-8">
-              <Coffee className="w-4 h-4 mr-2" />
-              Support
-            </Button>
+            </div>
           </div>
         </header>
 
         {/* Main Dashboard Layout */}
         <main className="flex-1 flex overflow-hidden">
           {/* Sidebar / Info Panel */}
-          <aside className="w-72 border-r border-white/5 bg-zinc-900/20 p-6 flex flex-col justify-between shrink-0">
-            <div className="space-y-6">
+          {/* Sidebar / Info Panel - Responsive Drawer */}
+          <aside className={`
+            fixed inset-y-0 left-0 z-[100] w-72 bg-zinc-950 border-r border-white/5 p-6 flex flex-col justify-between 
+            transition-transform duration-300 ease-in-out md:relative md:translate-x-0 md:bg-zinc-900/20 md:flex
+            ${isMobileMenuOpen ? 'translate-x-0 shadow-2xl shadow-emerald-500/20' : '-translate-x-full md:translate-x-0'}
+          `}>
+            {/* Mobile Close Button */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="absolute top-4 right-4 p-2 text-zinc-500 hover:text-white md:hidden"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-6 pt-4 md:pt-0">
               <div>
-                <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Capabilities</h2>
+                <h2 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Capabilities</h2>
                 <ul className="space-y-3">
-                  <li className="flex items-center gap-2 text-sm text-zinc-300">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Database Schema & Data
+                  <li className="flex items-center gap-3 text-sm text-zinc-300">
+                    <div className="p-1 rounded bg-emerald-500/10">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    </div>
+                    <span>Schema & Data</span>
                   </li>
-                  <li className={`flex items-center gap-2 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                    <CheckCircle2 className={`w-4 h-4 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} /> Storage Buckets & Files
+                  <li className={`flex items-center gap-3 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    <div className={`p-1 rounded ${sourceType === 'supabase' && targetType === 'supabase' ? 'bg-emerald-500/10' : 'bg-zinc-800/50'}`}>
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} />
+                    </div>
+                    <span>Storage Buckets</span>
                   </li>
-                  <li className={`flex items-center gap-2 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                    <CheckCircle2 className={`w-4 h-4 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} /> Auth Users & Settings
+                  <li className={`flex items-center gap-3 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    <div className={`p-1 rounded ${sourceType === 'supabase' && targetType === 'supabase' ? 'bg-emerald-500/10' : 'bg-zinc-800/50'}`}>
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} />
+                    </div>
+                    <span>Auth Settings</span>
                   </li>
-                  <li className={`flex items-center gap-2 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                    <CheckCircle2 className={`w-4 h-4 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} /> Edge Functions
+                  <li className={`flex items-center gap-3 text-sm ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-zinc-300' : 'text-zinc-600'}`}>
+                    <div className={`p-1 rounded ${sourceType === 'supabase' && targetType === 'supabase' ? 'bg-emerald-500/10' : 'bg-zinc-800/50'}`}>
+                      <CheckCircle2 className={`w-3.5 h-3.5 ${sourceType === 'supabase' && targetType === 'supabase' ? 'text-emerald-500' : 'text-zinc-800'}`} />
+                    </div>
+                    <span>Edge Functions</span>
                   </li>
                 </ul>
               </div>
 
-              <div className="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/10">
-                <h3 className="text-xs font-bold text-cyan-400 mb-2 flex items-center gap-1">
-                  <Info className="w-3 h-3" /> Tip
+              <div className="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/10 group hover:bg-cyan-500/10 transition-all">
+                <h3 className="text-[10px] font-black text-cyan-400 mb-2 flex items-center gap-1.5 uppercase tracking-tighter">
+                  <Info className="w-3 h-3" /> Architecture Tip
                 </h3>
-                <p className="text-[11px] leading-relaxed text-zinc-400">
+                <p className="text-[11px] leading-relaxed text-zinc-400 group-hover:text-zinc-300 transition-colors">
                   Ensure the target project is a fresh instance for the cleanest migration results.
                 </p>
               </div>
 
               {/* History Section */}
               {history.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-4 pt-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
-                      <HistoryIcon className="w-3 h-3" /> Recent Activity
+                    <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                      <HistoryIcon className="w-3 h-3" /> Activity
                     </h3>
                     <button
                       onClick={() => { setHistory([]); localStorage.removeItem('udm_migration_history'); }}
-                      className="text-[10px] text-zinc-500 hover:text-rose-400 transition-colors"
+                      className="text-[9px] font-black text-zinc-600 hover:text-rose-400 transition-colors tracking-widest"
                       title="Clear History"
                     >
                       CLEAR
                     </button>
                   </div>
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                  <div className="space-y-2 max-h-[200px] md:max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
                     {history.map((item, index) => (
-                      <div key={item.id} className="p-2.5 rounded-lg bg-white/5 border border-white/5 space-y-1 relative">
-                        <div className="absolute -top-1 -right-1 bg-zinc-800 border border-white/10 text-[9px] font-mono text-zinc-400 px-1.5 rounded-full z-10">
-                          #{index + 1}
+                      <div key={item.id} className="p-2.5 rounded-lg bg-white/5 border border-white/5 space-y-1.5 relative group hover:bg-white/[0.07] transition-all">
+                        <div className="absolute -top-1.5 -right-1.5 bg-zinc-800 border border-white/10 text-[8px] font-mono text-zinc-500 px-1.5 py-0.5 rounded-full z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          #{history.length - index}
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${item.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded tracking-tighter ${item.status === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
                             }`}>
                             {item.status.toUpperCase()}
                           </span>
-                          <span className="text-[9px] text-zinc-500">
-                            {new Date(item.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          <span className="text-[8px] text-zinc-500 font-medium">
+                            {new Date(item.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                           </span>
                         </div>
-                        <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1">
-                          <span className="text-zinc-500">{item.source}</span>
-                          <span className="text-zinc-700">→</span>
-                          <span className="text-zinc-500">{item.target}</span>
+                        <p className="text-[10px] text-zinc-400 truncate flex items-center gap-1 font-medium">
+                          <span className="text-zinc-300">{item.source}</span>
+                          <span className="text-zinc-600">→</span>
+                          <span className="text-zinc-300">{item.target}</span>
                         </p>
                       </div>
                     ))}
@@ -551,29 +587,42 @@ export default function MigrationWizard() {
 
             <div className="pt-6 border-t border-white/5 space-y-4">
               <div className="flex flex-col gap-1">
-                <p className="text-xs text-zinc-500 font-medium">Open Source Community</p>
-                <a href="https://github.com" target="_blank" rel="noreferrer" className="group flex items-center justify-between p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all border border-white/5">
-                  <span className="text-sm font-semibold text-white">Contribute on GitHub</span>
-                  <Github className="w-3 h-3 text-zinc-500 group-hover:text-emerald-400 transition-colors" />
+                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest px-1">Community</p>
+                <a href="https://github.com" target="_blank" rel="noreferrer" className="group flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all border border-white/5 hover:border-emerald-500/20">
+                  <span className="text-xs font-bold text-white">GitHub Repository</span>
+                  <Github className="w-3.5 h-3.5 text-zinc-500 group-hover:text-emerald-400 transition-colors" />
                 </a>
               </div>
               
               <div className="flex flex-col gap-1">
-                <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Maintained By</p>
-                <a href="https://dg10.agency" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-1 hover:opacity-80 transition-opacity">
-                  <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[10px] font-black text-white">DG</div>
-                  <span className="text-xs font-medium text-zinc-400 italic">DG10.Agency</span>
+                <p className="text-[9px] text-zinc-700 font-black uppercase tracking-[0.2em] px-1">Maintained By</p>
+                <a href="https://dg10.agency" target="_blank" rel="noreferrer" className="flex items-center gap-2 px-1 hover:opacity-80 transition-opacity group">
+                  <div className="w-5 h-5 rounded bg-zinc-800 flex items-center justify-center text-[9px] font-black text-white border border-white/5 group-hover:border-emerald-500/30 transition-all shadow-sm">DG</div>
+                  <span className="text-xs font-bold text-zinc-500 group-hover:text-zinc-300 transition-colors">DG10.Agency</span>
                 </a>
               </div>
             </div>
-          </aside >
+          </aside>
+
+          {/* Overlay for mobile sidebar */}
+          {isMobileMenuOpen && (
+            <div 
+              className="fixed inset-0 bg-black/80 backdrop-blur-md z-[90] md:hidden animate-in fade-in duration-300" 
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
 
           {/* Content Area */}
-          < div className="flex-1 flex flex-col p-8 overflow-y-auto custom-scrollbar" >
-            <div className="max-w-6xl w-full mx-auto space-y-8">
+          <div className="flex-1 flex flex-col min-w-0 p-4 md:p-8 overflow-y-auto overflow-x-hidden custom-scrollbar relative">
+            <div className="max-w-7xl w-full mx-auto space-y-6 md:space-y-8">
               <div className="flex flex-col gap-2">
-                <h2 className="text-3xl font-bold tracking-tight">Migration Workspace</h2>
-                <p className="text-zinc-400">Migrate databases across PostgreSQL, MySQL, SQLite, and Supabase instances.</p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-widest border border-emerald-500/20">v2.0 Stable</span>
+                </div>
+                <h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight text-white">Migration Workspace</h2>
+                <p className="text-zinc-400 text-sm md:text-base max-w-2xl">
+                  High-performance database synchronization engine supporting PostgreSQL, MySQL, SQLite, and cloud-native Supabase instances.
+                </p>
               </div>
 
 
@@ -643,7 +692,7 @@ export default function MigrationWizard() {
                       })()
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                       {/* Source Environment */}
                       <div className="space-y-4">
                         <h3 className="font-semibold flex items-center gap-2 text-sm text-rose-400/90 bg-rose-400/5 px-3 py-1.5 rounded-lg border border-rose-400/10 w-fit">
@@ -652,18 +701,18 @@ export default function MigrationWizard() {
                         </h3>
                         
                         <Tabs value={sourceType} onValueChange={(val) => setSourceType(val as DriverMode)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5">
-                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center gap-2">
-                              <Zap className="w-3.5 h-3.5" /> Supabase
+                          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5 h-auto min-h-[40px] p-1 gap-1 group-data-[orientation=horizontal]/tabs:h-auto !flex !items-stretch">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Zap className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Supabase</span>
                             </TabsTrigger>
-                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center gap-2">
-                              <Database className="w-3.5 h-3.5" /> Postgres
+                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Postgres</span>
                             </TabsTrigger>
-                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center gap-2">
-                              <Server className="w-3.5 h-3.5" /> MySQL
+                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Server className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">MySQL</span>
                             </TabsTrigger>
-                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center gap-2">
-                              <Database className="w-3.5 h-3.5" /> SQLite
+                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">SQLite</span>
                             </TabsTrigger>
                           </TabsList>
                           
@@ -844,18 +893,18 @@ export default function MigrationWizard() {
                         </h3>
                         
                         <Tabs value={targetType} onValueChange={(val) => setTargetType(val as DriverMode)} className="w-full">
-                          <TabsList className="grid w-full grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5">
-                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center gap-2">
-                              <Zap className="w-3.5 h-3.5" /> Supabase
+                          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 mb-4 bg-zinc-950/50 border border-white/5 h-auto min-h-[40px] p-1 gap-1 group-data-[orientation=horizontal]/tabs:h-auto !flex !items-stretch">
+                            <TabsTrigger value="supabase" className="data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Zap className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Supabase</span>
                             </TabsTrigger>
-                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center gap-2">
-                              <Database className="w-3.5 h-3.5" /> Postgres
+                            <TabsTrigger value="postgres" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">Postgres</span>
                             </TabsTrigger>
-                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center gap-2">
-                              <Server className="w-3.5 h-3.5" /> MySQL
+                            <TabsTrigger value="mysql" className="data-[state=active]:bg-orange-500/20 data-[state=active]:text-orange-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Server className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">MySQL</span>
                             </TabsTrigger>
-                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center gap-2">
-                              <Database className="w-3.5 h-3.5" /> SQLite
+                            <TabsTrigger value="sqlite" className="data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 flex items-center justify-center gap-2 py-3 px-2 text-[10px] sm:text-xs h-auto min-h-[40px] flex-1">
+                              <Database className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">SQLite</span>
                             </TabsTrigger>
                           </TabsList>
                           
@@ -1030,18 +1079,18 @@ export default function MigrationWizard() {
                       </div>
                     </div>
                     <Button
-                      className="w-full h-12 text-md font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 shadow-xl shadow-emerald-500/20 transition-all text-white border-none rounded-xl"
+                      className="w-full h-11 md:h-12 text-sm md:text-md font-bold bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 shadow-xl shadow-emerald-500/20 transition-all text-white border-none rounded-xl"
                       onClick={handleMigration}
                       disabled={isMigrating}
                     >
                       {isMigrating ? (
                         <>
-                          <Loader2 className="w-5 h-5 mr-3 animate-spin" />
-                          Initializing Synchronization...
+                          <Loader2 className="w-4 h-4 md:w-5 md:h-5 mr-3 animate-spin" />
+                          Initializing...
                         </>
                       ) : (
                         <>
-                          <Play className="w-5 h-5 mr-3 fill-current" />
+                          <Play className="w-4 h-4 md:w-5 md:h-5 mr-3 fill-current" />
                           Execute Automation
                         </>
                       )}
@@ -1228,7 +1277,7 @@ export default function MigrationWizard() {
                           </div>
                         </div>
 
-                        <div className={`grid grid-cols-1 ${sourceType === 'supabase' && targetType === 'supabase' ? 'md:grid-cols-5' : 'md:grid-cols-3'} gap-2`}>
+                        <div className={`grid grid-cols-2 ${sourceType === 'supabase' && targetType === 'supabase' ? 'md:grid-cols-5' : 'md:grid-cols-3'} gap-2`}>
                           {[
                             { step: 10, label: "Auth" },
                             { step: 30, label: "Schema" },
@@ -1239,10 +1288,10 @@ export default function MigrationWizard() {
                             ] : [])
                           ].map((m, index) => (
                             <div key={m.step} className={`p-3 rounded-xl border transition-all flex flex-col items-center text-center gap-2 ${progress >= m.step ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-white/5 border-white/5'}`}>
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${progress >= m.step ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
-                                {progress >= m.step ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-[10px] font-bold">{index + 1}</span>}
+                              <div className={`w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center shrink-0 ${progress >= m.step ? 'bg-emerald-500 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                                {progress >= m.step ? <CheckCircle2 className="w-3.5 h-3.5" /> : <span className="text-[9px] font-bold">{index + 1}</span>}
                               </div>
-                              <span className={`text-[10px] font-bold uppercase tracking-tight ${progress >= m.step ? 'text-zinc-100' : 'text-zinc-500'}`}>{m.label}</span>
+                              <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-tight ${progress >= m.step ? 'text-zinc-100' : 'text-zinc-500'}`}>{m.label}</span>
                             </div>
                           ))}
                         </div>
@@ -1316,12 +1365,12 @@ export default function MigrationWizard() {
                         <Terminal className="w-4 h-4 text-emerald-500" />
                         <h3 className="text-sm font-bold text-zinc-300">Live Terminal Output</h3>
                       </div>
-                      <div className="bg-zinc-950 border border-white/5 rounded-lg p-4 font-mono text-[10px] text-zinc-400 overflow-y-auto h-[250px] custom-scrollbar shadow-inner">
+                      <div className="bg-zinc-950 border border-white/5 rounded-lg p-4 font-mono text-[10px] text-zinc-400 overflow-y-auto overflow-x-auto break-all h-[250px] custom-scrollbar shadow-inner">
                         {terminalLogs.length === 0 ? (
                           <div className="text-zinc-600 italic">Waiting for database process output...</div>
                         ) : (
                           terminalLogs.map((log, i) => (
-                            <div key={i} className="whitespace-pre-wrap">{log}</div>
+                            <div key={i} className="whitespace-pre-wrap mb-1 last:mb-0 border-l border-white/5 pl-2 py-0.5">{log}</div>
                           ))
                         )}
                         <div ref={terminalEndRef} />

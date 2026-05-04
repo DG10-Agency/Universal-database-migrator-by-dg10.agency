@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   db-migrator:
-    image: ghcr.io/dg10-agency/complete-supabase-one-click-migration-by-dg10.agency:main
+    image: ghcr.io/dg10-agency/universal-database-migrator-by-dg10.agency:main
     container_name: universal-db-migrator
     restart: always
     ports:
@@ -12,6 +12,8 @@ services:
       # Add any custom ENV vars here if needed
     networks:
       - edge
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
 
 networks:
   edge:
