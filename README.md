@@ -11,8 +11,8 @@
   [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
   
   <p><i>Effortlessly mirror schemas, data, and settings across PostgreSQL, MySQL, SQLite, and full Supabase instances in a single click.</i></p>
-  <p><b>The online version can be used at dbmigrator.dg10.agency but it is to be noted that we do not store any credentials in our database all your session, cookies and everything is stored in your browser, but still for production and confidential migration please prefer using the self hosted version, as the project is free and open-source and is promised to be free forever.</b></p>
-  <p><b>If you have any suggestions or feedback, please feel free to reach out to us at admin@dg10.agency.</b></p>
+  <p><b>The online version can be used at <a href="https://dbmigrator.dg10.agency" target="_blank">dbmigrator.dg10.agency</a> but it is to be noted that we do not store any credentials in our database all your session, cookies and everything is stored in your browser, but still for production and confidential migration please prefer using the self hosted version, as the project is free and open-source and is promised to be free forever.</b></p>
+  <p><b>If you have any suggestions or feedback, please feel free to reach out to us at <a href="mailto:admin@dg10.agency">admin@dg10.agency</a>.</b></p>
   <p><b>Happy to serve and be a part of your success journey.</b></p>
   <p><b>- DG10.Agency</b></p>
 
