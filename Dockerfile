@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 # Install Supabase CLI via direct binary (more reliable than npm in Docker)
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then SUPA_ARCH="amd64"; else SUPA_ARCH="arm64"; fi && \
-    LATEST_TAG=$(curl -s "https://api.github.com/repos/supabase/cli/releases/latest" | sed -n 's/.*"tag_name": "\(.*\)".*/\1/p') && \
+    LATEST_TAG=$(curl -s "https://api.github.com/repos/supabase/cli/releases/latest" | grep '"tag_name":' | cut -d '"' -f 4) && \
     VERSION=${LATEST_TAG#v} && \
     curl -L "https://github.com/supabase/cli/releases/download/${LATEST_TAG}/supabase_${VERSION}_linux_${SUPA_ARCH}.tar.gz" -o supabase.tar.gz && \
     tar -xzf supabase.tar.gz -C /usr/local/bin && \
