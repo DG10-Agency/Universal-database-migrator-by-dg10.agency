@@ -1,4 +1,4 @@
-name: Build & Deploy UDM
+name: Build & Push UDM
 
 on:
   push:
@@ -51,43 +51,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to Staging
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USER }}
-          key: ${{ secrets.STAGING_SSH_KEY }}
-          script_stop: true
-          command_timeout: 10m
-          script: |
-            set -euo pipefail
-
-            IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-            echo "=== Pulling $IMAGE ==="
-            docker pull "$IMAGE"
-            docker tag "$IMAGE" ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-            echo "=== Stopping old container ==="
-            docker stop universal-db-migrator 2>/dev/null || true
-            docker rm universal-db-migrator 2>/dev/null || true
-
-            echo "=== Starting new container ==="
-            docker run -d \
-              --name universal-db-migrator \
-              --restart unless-stopped \
-              -p 3003:3000 \
-              -e NODE_ENV=production \
-              --network edge \
-              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-            echo "=== Waiting for startup ==="
-            sleep 10
-
-            echo "=== Health check ==="
-            curl -sf http://localhost:3003/ > /dev/null && echo "✅ UDM live on port 3003" || echo "❌ UDM failed to start"
+      - name: Summary
+        run: |
+          echo "## ✅ Build Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Image pushed to: \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Auto-deploy cron on staging will pick this up within 5 minutes." >> $GITHUB_STEP_SUMMARY
