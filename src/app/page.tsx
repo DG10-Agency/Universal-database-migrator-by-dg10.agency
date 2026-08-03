@@ -309,14 +309,11 @@ export default function MigrationWizard() {
       if (!reader) throw new Error('ReadableStream not supported');
 
       const decoder = new TextDecoder();
+      let migrationSucceeded = false;
       while (true) {
         const { done, value } = await reader.read();
         if (done) {
-          // If stream ends without 100% progress, it might still be a success if all data was sent.
-          // Or, if the server explicitly sends a final success message.
-          // For now, we'll assume success if the stream completes without error and progress reached 100.
-          // If progress didn't reach 100, it means the stream ended prematurely or there was an issue.
-          if (progress < 100) { // Check if progress was updated to 100%
+          if (!migrationSucceeded && progress < 100) {
             saveToHistory('failed', 'Migration stream ended prematurely or did not reach 100% progress.');
             toast.error('Migration stream ended prematurely.');
           }
@@ -344,6 +341,7 @@ export default function MigrationWizard() {
                 });
               }
               if (data.progress === 100 || data.message === "Migration Completed Successfully") {
+                migrationSucceeded = true;
                 saveToHistory('success', 'Migration completed successfully');
                 toast.success('Migration Finished!');
                 setIsMigrating(false);
