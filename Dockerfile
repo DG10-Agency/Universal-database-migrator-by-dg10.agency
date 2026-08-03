@@ -4,15 +4,18 @@
 FROM node:20-slim AS base
 
 # Install system dependencies for database operations
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
+# Add PostgreSQL APT repo for version-specific clients
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg     && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg     && echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt resolute-pgdg main" > /etc/apt/sources.list.d/pgdg.list     && apt-get update && apt-get install -y \
+    postgresql-client-17 \
     default-mysql-client \
     sqlite3 \
     curl \
     git \
     zip \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Symlink PG17 tools to standard names
+RUN ln -sf /usr/lib/postgresql/17/bin/pg_dump /usr/local/bin/pg_dump     && ln -sf /usr/lib/postgresql/17/bin/pg_dumpall /usr/local/bin/pg_dumpall     && ln -sf /usr/lib/postgresql/17/bin/psql /usr/local/bin/psql     && pg_dump --version
 
 # Install Supabase CLI via direct binary (more reliable than npm in Docker)
 RUN ARCH=$(uname -m) && \
