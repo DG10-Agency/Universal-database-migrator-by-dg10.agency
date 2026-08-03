@@ -51,7 +51,7 @@ export class PostgresDriver implements IDatabaseDriver {
                     headers: { 'Authorization': `Bearer ${config.pat}` }
                 });
                 if (response.ok) {
-                    const poolerConfig = await response.json();
+                    const poolerConfigRaw = await response.json(); const poolerConfig = Array.isArray(poolerConfigRaw) ? poolerConfigRaw[0] : poolerConfigRaw;
                     if (poolerConfig.db_host) {
                         strategies.push({ host: poolerConfig.db_host, port: poolerConfig.db_port || 6543, user: `postgres.${trimmedRef}`, note: 'API Discovery' });
                     }
@@ -62,7 +62,7 @@ export class PostgresDriver implements IDatabaseDriver {
         // 2. Universal & Regional Poolers
         strategies.push({ host: `${trimmedRef}.pooler.supabase.com`, port: 6543, user: `postgres.${trimmedRef}`, note: 'Universal Pooler' });
         if (trimmedRegion) {
-            strategies.push({ host: `aws-0-${trimmedRegion}.pooler.supabase.com`, port: 6543, user: `postgres.${trimmedRef}`, note: 'Regional Pooler' });
+            strategies.push({ host: `aws-1-${trimmedRegion}.pooler.supabase.com`, port: 6543, user: `postgres.${trimmedRef}`, note: 'Regional Pooler' });
         }
         
         // 3. Direct Host
