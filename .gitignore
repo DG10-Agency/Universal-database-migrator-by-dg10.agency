@@ -37,3 +37,5 @@ next-env.d.ts
 /tmp/roles_*.sql
 /tmp/schema_*.sql
 /tmp/data_*.sql
+ 
+graphify-out/ 
